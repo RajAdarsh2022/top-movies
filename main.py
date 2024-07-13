@@ -52,9 +52,9 @@ def home():
 def edit_movie_data():
     movie_id = int(request.args.get('movie_id'))
 
-    with app.app_context():
-        movie = db.session.execute(db.select(Movie).filter_by(id=movie_id)).scalar()
-    # movie = db.get_or_404(Movie, movie_id)
+    # with app.app_context():
+    #     movie = db.session.execute(db.select(Movie).filter_by(id=movie_id)).scalar()
+    movie = db.get_or_404(Movie, movie_id)
 
     update_form = UpdateForm()
     if update_form.validate_on_submit():
