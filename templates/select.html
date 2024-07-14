@@ -6,7 +6,16 @@
 <div class="container">
     <h1 class="heading">Select Movie</h1>
   <p>
-    <a href="#"> MOVIE TITLE - MOVIE RELEASE DATE</a>
+    {%if movies_list == []%}
+      <p>No movie with the particular name exist.</p>
+    {%else%}
+      {%for movie in movies_list%}
+      <div>
+        <a href="{{url_for('get_movie_details', movie_id=movie['id'])}}"> {{movie['original_title']}} - {{movie['release_date']}}</a>
+      </div>
+      {%endfor%}
+    {%endif%}
+    
   </p>
 
 </div>

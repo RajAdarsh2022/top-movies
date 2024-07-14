@@ -1,7 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, request
 from flask_bootstrap import Bootstrap5
 from database import db, Movie
-from wt_form import UpdateForm
+from wt_form import UpdateForm, MovieForm
 import requests
 from dotenv import load_dotenv
 import os
@@ -20,33 +20,63 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
-# with app.app_context():
-#     new_movie = Movie(
-#         title="Avatar The Way of Water",
-#         year=2022,
-#         description="Set more than a decade after the events of the first film, learn the story of the Sully family (Jake, Neytiri, and their kids), the trouble that follows them, the lengths they go to keep each other safe, the battles they fight to stay alive, and the tragedies they endure.",
-#         rating=7.3,
-#         ranking=9,
-#         review="I liked the water.",
-#         img_url="https://image.tmdb.org/t/p/w500/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg"
-#     )
-#     db.session.add(new_movie)
-#     db.session.commit()
 
 
 @app.route("/")
 def home():
     with app.app_context():
         all_movies = list(db.session.execute(db.select(Movie)).scalars())
-    for movie in all_movies:
-        print(f"Movie ID: {movie.id}, Title: {movie.title}, Rating: {movie.rating}, Review: {movie.review}")  
-
+    
     return render_template("index.html", all_movies=all_movies)
 
-    #Angela's method
-    # result = db.session.execute(db.select(Movie))
-    # all_movies = list(result.scalars())
-    # return render_template("index.html", movies=all_movies)
+@app.route("/add", methods=['GET', 'POST'])
+def add_movie_data():
+    movie_form = MovieForm()
+    if movie_form.validate_on_submit():
+
+        url = f"https://api.themoviedb.org/3/search/movie"
+        print(movie_form.movie_title.data)
+        params = {
+            "query": movie_form.movie_title.data
+        }
+        headers = {
+            "accept": "application/json",
+            "Authorization": f"Bearer {os.getenv('TMDB_AUTH')}"
+        }
+        response = requests.get(url=url, headers=headers, params=params)
+        response.raise_for_status()
+        response_data = response.json()
+        movies_list = response_data["results"]
+        for movie in movies_list:
+            print(movie["original_title"])
+        return render_template('select.html', movies_list=movies_list)
+
+        
+    return render_template("add.html", movie_form=movie_form)
+
+
+@app.route("/movie/<int:movie_id>")
+def get_movie_details(movie_id):
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}?language=en-US"
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {os.getenv('TMDB_AUTH')}"
+    }
+    response = requests.get(url=url, headers=headers)
+    response.raise_for_status()
+    response_data = response.json()  
+
+    new_movie = Movie(
+        title=response_data["original_title"],
+        description=response_data["overview"],
+        year=response_data["release_date"].split("-")[0],
+        img_url=f"https://image.tmdb.org/t/p/w500{response_data['poster_path']}",
+    )
+    db.session.add(new_movie)
+    db.session.commit()
+    return "Success! Hope so"
+
+
 
 @app.route("/edit", methods=['GET', 'POST'])
 def edit_movie_data():
@@ -58,21 +88,23 @@ def edit_movie_data():
 
     update_form = UpdateForm()
     if update_form.validate_on_submit():
-        print('Updating post route')
-        print(update_form.new_rating.data)
-        print(update_form.new_review.data)
         movie.rating = float(update_form.new_rating.data)
         movie.review = update_form.new_review.data
-        try:
-            db.session.flush()  # Explicitly flush the session
-            db.session.commit()
-            print('Database commit successful')
-        except Exception as e:
-            print('Database commit failed:', e)
+        db.session.commit()
         return redirect(url_for('home'))
 
     return render_template('edit.html', update_form=update_form, movie=movie)
 
+
+@app.route("/delete")
+def delete_movie_data():
+    movie_id = request.args.get('movie_id')
+    movie = db.get_or_404(Movie, movie_id)
+
+    db.session.delete(movie)
+    db.session.commit()
+
+    return redirect(url_for('home'))
 
 
 
